@@ -1,0 +1,24 @@
+# Example deployment. Copy to docker-compose.yml and adjust the volume, the
+# version and any layerd flags your node needs.
+services:
+  layer:
+    image: ghcr.io/cryptoriums/layer-docker:latest
+    container_name: layer
+    restart: unless-stopped
+    environment:
+      # The version to run now. Once the node has upgraded at least once,
+      # cosmovisor's own `current` symlink decides what runs.
+      LAYER_VERSION: v6.1.8
+      # Public endpoint first so the upgrade check survives our own node being
+      # down - which is when an upgrade is most likely to be missed.
+      LAYER_CHAIN_API: https://mainnet.tellorlayer.com,http://127.0.0.1:26657
+      LAYER_POLL: 5m
+    volumes:
+      - ./chain:/root/chain
+    ports:
+      - "26656:26656"   # p2p
+      - "26657:26657"   # rpc
+    command:
+      - run
+      - start
+      - --home=/root/chain
