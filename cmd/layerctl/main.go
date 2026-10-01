@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -114,11 +115,37 @@ func stage(ctx context.Context, args []string) error {
 	return nil
 }
 
+// seedPrivValidatorState writes the empty signing state CometBFT expects when a
+// node home has never been started. The shell entrypoint of the image this
+// replaces did the same thing, so dropping it would break a fresh deployment.
+//
+// An existing file is never touched. It records the last height, round and step
+// this validator signed, and overwriting it is how a validator double-signs.
+func seedPrivValidatorState(home string) error {
+	path := filepath.Join(home, "data", "priv_validator_state.json")
+	switch _, err := os.Stat(path); {
+	case err == nil:
+		return nil
+	case !errors.Is(err, os.ErrNotExist):
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte("{\n  \"height\": \"0\",\n  \"round\": 0,\n  \"step\": 0\n}\n"), 0o600)
+}
+
 // run prepares the layout and execs cosmovisor, having first started the watcher
 // that stages future upgrades.
 func run(ctx context.Context, args []string) error {
 	home := env("LAYER_HOME", defaultHome)
 	layout := cosmovisor.Layout{Home: home}
+
+	if len(args) > 0 && args[0] == "start" {
+		if err := seedPrivValidatorState(home); err != nil {
+			return fmt.Errorf("seed priv_validator_state.json: %w", err)
+		}
+	}
 
 	if err := layout.WriteConfig(); err != nil {
 		return fmt.Errorf("write cosmovisor config: %w", err)

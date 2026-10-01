@@ -23,8 +23,9 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/layerctl ./cmd/lay
 FROM debian:bookworm-slim
 
 # ca-certificates is required: layerctl fetches releases over HTTPS.
+# curl is here for the compose healthcheck, which polls the node's /status.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini \
+ && apt-get install -y --no-install-recommends ca-certificates curl tini \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/cosmovisor /usr/local/bin/cosmovisor
