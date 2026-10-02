@@ -79,6 +79,11 @@ repository, verified against published checksums.
 that is the artifact the node is prepared to run at a known height. Re-staging
 fails loudly rather than silently changing what will execute.
 
+**`layerd` is on PATH inside the container**, as a shim that execs whichever
+version cosmovisor currently points at. The image ships no chain binary, but
+host tooling and ad-hoc operator queries reasonably expect `docker exec <ctr>
+layerd query ...` to work, and silently breaking that is not worth the purity.
+
 **Binaries are installed atomically** — written to a temp file in the destination
 directory and renamed — so cosmovisor, which may be scanning at any moment, can
 never observe a half-written binary.

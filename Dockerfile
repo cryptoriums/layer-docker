@@ -31,6 +31,17 @@ RUN apt-get update \
 COPY --from=build /out/cosmovisor /usr/local/bin/cosmovisor
 COPY --from=build /out/layerctl   /usr/local/bin/layerctl
 
+# Put layerd on PATH for anything that shells into this container - health
+# exporters, operators running ad-hoc queries. The image ships no chain binary,
+# so this resolves the staged one at call time rather than baking in a path:
+# cosmovisor's `current` symlink is what decides which version is live, and
+# LAYER_HOME may be overridden.
+RUN printf '%s\n' \
+      '#!/bin/sh' \
+      'exec "${LAYER_HOME:-/root/chain}/cosmovisor/current/bin/layerd" "$@"' \
+    > /usr/local/bin/layerd \
+ && chmod 0755 /usr/local/bin/layerd
+
 ENV LAYER_HOME=/root/chain
 WORKDIR /root/chain
 VOLUME ["/root/chain"]
