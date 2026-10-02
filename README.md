@@ -94,8 +94,15 @@ docker build -t layer-docker .
 go test ./...
 ```
 
-## Not included
+## Publishing
 
-No CI workflow is committed. Add `.github/workflows/docker.yml` to build and push
-to `ghcr.io` on tag; it was left out because the token used to create this repo
-lacks the `workflow` scope.
+`.github/workflows/docker.yml` builds and pushes to `ghcr.io` on every push to
+`main` and on `v*` tags. Tests, `go vet` and `gofmt` run first and the image is
+only published if they pass, because the nodes pull it.
+
+```
+ghcr.io/cryptoriums/layer-docker:main        # tracks main
+ghcr.io/cryptoriums/layer-docker:sha-<short> # pin to an exact build
+ghcr.io/cryptoriums/layer-docker:v1.2.3      # release tags
+ghcr.io/cryptoriums/layer-docker:latest      # newest release tag
+```
