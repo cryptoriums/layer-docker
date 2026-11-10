@@ -51,6 +51,7 @@ Everything after `run` is passed through to `layerd`.
 | `LAYER_POLL` | `5m` | how often to check for a scheduled upgrade |
 | `LAYER_REPO` | `tellor-io/layer` | release repository |
 | `LAYER_NO_WATCH` | — | set to `1` to disable automatic staging |
+| `LAYER_LOG_DROP` | — | comma-separated substrings; node log lines containing one are dropped and counted hourly (a standby node sets `not the primary signer`) |
 
 List more than one endpoint in `LAYER_CHAIN_API` if you want the check to survive
 your own node being down — which is exactly when an upgrade is most likely to be
@@ -59,7 +60,7 @@ missed.
 ## Commands
 
 ```
-layerctl run [-- <layerd args>]   stage, watch for upgrades, exec cosmovisor
+layerctl run [-- <layerd args>]   stage, watch for upgrades, run cosmovisor
 layerctl stage <version>          download and stage one version, then exit
 ```
 
