@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -67,7 +66,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `layerctl - run Tellor Layer under cosmovisor using official release binaries
 
   layerctl run [-- <layerd args>]   stage the configured version, watch for
-                                    upgrade plans, then exec cosmovisor
+                                    upgrade plans, then run cosmovisor
   layerctl stage <version>          download and stage one version, then exit
 
 Environment:
@@ -77,6 +76,9 @@ Environment:
   LAYER_POLL        how often to check for a scheduled upgrade (default 5m)
   LAYER_REPO        release repo (default tellor-io/layer)
   LAYER_NO_WATCH    set to 1 to disable automatic upgrade staging
+  LAYER_LOG_DROP    comma-separated substrings; node log lines containing one
+                    are dropped (unset = off; a standby node sets
+                    "not the primary signer")
 `)
 }
 
@@ -135,8 +137,8 @@ func seedPrivValidatorState(home string) error {
 	return os.WriteFile(path, []byte("{\n  \"height\": \"0\",\n  \"round\": 0,\n  \"step\": 0\n}\n"), 0o600)
 }
 
-// run prepares the layout and execs cosmovisor, having first started the watcher
-// that stages future upgrades.
+// run prepares the layout, starts the watcher that stages future upgrades and
+// runs cosmovisor as a child process so the watcher stays alive.
 func run(ctx context.Context, args []string) error {
 	home := env("LAYER_HOME", defaultHome)
 	layout := cosmovisor.Layout{Home: home}
@@ -183,7 +185,7 @@ func run(ctx context.Context, args []string) error {
 		go watch(ctx, rel, layout)
 	}
 
-	return execCosmovisor(args)
+	return runCosmovisor(args)
 }
 
 // watch polls the chain for a scheduled upgrade and stages its binary.
@@ -237,7 +239,9 @@ func checkPlan(ctx context.Context, planClient *plan.Client, rel *release.Client
 	}
 
 	fmt.Printf("layerctl: upgrade %s scheduled at height %d, staging binary\n", p.Name, p.Height)
-	if err := stageQuietly(ctx, rel, layout, version.Tag()); err != nil {
+	// Stage under the plan name itself: cosmovisor looks for upgrades/<plan name>,
+	// which differs from the release tag when the plan name has no "v" prefix.
+	if err := stageQuietly(ctx, rel, layout, p.Name); err != nil {
 		fmt.Fprintf(os.Stderr, "layerctl: staging %s failed: %v\n", version.Tag(), err)
 		return
 	}
@@ -250,24 +254,4 @@ func stageQuietly(ctx context.Context, rel *release.Client, layout cosmovisor.La
 		return err
 	}
 	return layout.InstallUpgrade(tag, bin)
-}
-
-// execCosmovisor replaces this process with cosmovisor, so signals and exit codes
-// reach the node directly and nothing sits between Docker and the daemon.
-func execCosmovisor(args []string) error {
-	path, err := exec.LookPath("cosmovisor")
-	if err != nil {
-		return fmt.Errorf("cosmovisor not found: %w", err)
-	}
-
-	home := env("LAYER_HOME", defaultHome)
-	envv := append(os.Environ(),
-		"DAEMON_NAME=layerd",
-		"DAEMON_HOME="+home,
-		"DAEMON_RESTART_AFTER_UPGRADE=true",
-		"DAEMON_ALLOW_DOWNLOAD_BINARIES=false",
-	)
-
-	argv := append([]string{"cosmovisor", "run"}, args...)
-	return syscall.Exec(path, argv, envv)
 }
